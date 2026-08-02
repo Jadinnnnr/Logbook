@@ -13,10 +13,10 @@ import {
   saveMedical,
   saveEndorsement,
   savePilotDetails,
-  saveAvatar,
   removeAvatar,
   deleteProfileRecord,
 } from "@/lib/actions";
+import AvatarUpload from "@/components/AvatarUpload";
 import { medicalPrivileges, finalExpiry } from "@/lib/medical";
 
 /** Days until a date, or null when there's no date. */
@@ -82,19 +82,18 @@ export default async function ProfilePage({
         <div className="avatar-row">
           {user.avatar_type ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src="/api/avatar" alt="Your profile picture" className="avatar avatar-lg" />
+            <img
+              src={`/api/avatar?v=${user.avatar_version ?? ""}`}
+              alt="Your profile picture"
+              className="avatar avatar-lg"
+            />
           ) : (
             <span className="avatar avatar-lg avatar-initials" aria-hidden>
               {initials}
             </span>
           )}
           <div className="avatar-controls">
-            <form action={saveAvatar} className="stack">
-              <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif" required />
-              <div className="page-actions" style={{ marginBottom: 0 }}>
-                <button type="submit">{user.avatar_type ? "Replace Picture" : "Upload Picture"}</button>
-              </div>
-            </form>
+            <AvatarUpload hasPicture={Boolean(user.avatar_type)} />
             {user.avatar_type && (
               <form action={removeAvatar}>
                 <button type="submit" className="btn-danger" style={{ paddingLeft: 0 }}>
@@ -103,7 +102,8 @@ export default async function ProfilePage({
               </form>
             )}
             <span className="muted" style={{ fontSize: 12 }}>
-              PNG, JPEG, WebP, or GIF, up to 2 MB. Stored in your logbook file, visible only to you.
+              PNG, JPEG, WebP, or GIF, up to 8 MB. Drag and zoom to frame it — only the square you
+              choose is saved, in your logbook file, visible only to you.
             </span>
           </div>
         </div>

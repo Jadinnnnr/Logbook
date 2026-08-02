@@ -110,7 +110,12 @@ for (const part of PARTS) {
     const num = head.match(/§+\s*([\d.]+[a-zA-Z-]*)/)?.[1];
     if (!num) continue;
     const title = head.replace(/^§+\s*[\d.]+[a-zA-Z-]*\s*/, "").trim();
-    const body = toText(chunk.replace(/<HEAD>[\s\S]*?<\/HEAD>/, ""));
+    // Splitting on the tag name leaves this element's own attributes at the
+    // front of the chunk with no "<" in front of them, so the tag stripper in
+    // toText() can't see them and they end up in the body as literal text.
+    // Drop everything through the end of that open tag first.
+    const inner = chunk.replace(/^[^>]*>/, "");
+    const body = toText(inner.replace(/<HEAD>[\s\S]*?<\/HEAD>/, ""));
     if (!body) continue;
     insert.run(
       "FAR",
@@ -126,10 +131,25 @@ for (const part of PARTS) {
 }
 
 // ---------- AIM ----------
+// The prose lives on the section pages (chap5_section_4.html) and the
+// appendices. The chap_N.html pages are only tables of contents — indexing
+// those gives you a citation and a title with no text under it.
+const AIM_PAGE = /^(?:chap\d+_section_\d+|appendix_\d+)\.html$/i;
 let nAim = 0;
 try {
   const index = await fetchText(AIM_INDEX);
-  const hrefs = [...new Set([...index.matchAll(/href="(chap[^"]*?\.html)"/gi)].map((m) => m[1]))];
+  const hrefs = [
+    ...new Set(
+      [...index.matchAll(/href="([^"]+\.html)"/gi)]
+        .map((m) => m[1].replace(/^\.?\//, ""))
+        .filter((h) => AIM_PAGE.test(h))
+    ),
+  ].sort();
+  if (hrefs.length === 0) throw new Error("no section pages found on the AIM index");
+
+  // Every page repeats the site-wide chapter nav, and long paragraphs are split
+  // across pages, so keep the longest body seen for each citation.
+  const best = new Map();
   for (const href of hrefs) {
     let html;
     try {
@@ -138,24 +158,25 @@ try {
       console.warn(`  ${href}: ${e.message} — skipped`);
       continue;
     }
-    const pageTitle = toText(html.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? href);
     // Each numbered paragraph starts a searchable unit: "5-4-1. Air Traffic..."
     const text = toText(html.replace(/<head[\s\S]*?<\/head>/i, " "));
-    const parts = text.split(/(?=^\d+[-−]\d+[-−]\d+\.\s)/m).filter((p) => p.trim());
+    const parts = text.split(/(?=^\d+[-−]\d+[-−]\d+\.\s)/m);
+    let onPage = 0;
     for (const chunk of parts) {
       const m = chunk.match(/^(\d+)[-−](\d+)[-−](\d+)\.\s*([^\n]*)/);
-      if (!m) continue;
+      if (!m) continue; // the leading nav block
       const citation = `AIM ${m[1]}-${m[2]}-${m[3]}`;
       const body = chunk.trim();
-      if (body.length < 40) continue;
-      insert.run("AIM", citation, m[4].trim().slice(0, 200), body, AIM_BASE + href);
-      nAim++;
+      const prev = best.get(citation);
+      if (prev && prev.body.length >= body.length) continue;
+      best.set(citation, { citation, title: m[4].trim().slice(0, 200), body, url: AIM_BASE + href });
+      if (!prev) onPage++;
     }
-    if (parts.length <= 1) {
-      // A chapter page without numbered paragraphs still gets one entry.
-      insert.run("AIM", pageTitle.slice(0, 80), pageTitle.slice(0, 200), text, AIM_BASE + href);
-      nAim++;
-    }
+    console.log(`  ${href}: ${onPage} paragraphs`);
+  }
+  for (const e of best.values()) {
+    insert.run("AIM", e.citation, e.title, e.body, e.url);
+    nAim++;
   }
 } catch (e) {
   console.warn(`AIM index failed (${e.message}) — FARs only`);

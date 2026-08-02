@@ -22,7 +22,7 @@ export default async function Nav() {
         <Link href="/profile" className="nav-user" title="Your profile — certificates, medicals, endorsements">
           {user.avatar_type ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src="/api/avatar" alt="" className="avatar avatar-sm" />
+            <img src={`/api/avatar?v=${user.avatar_version ?? ""}`} alt="" className="avatar avatar-sm" />
           ) : (
             <span className="avatar avatar-sm avatar-initials" aria-hidden>
               {user.username.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}

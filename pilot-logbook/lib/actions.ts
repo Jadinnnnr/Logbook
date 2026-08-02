@@ -339,7 +339,9 @@ export async function savePilotDetails(formData: FormData) {
 }
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
-const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+/** The browser crops before uploading, so what arrives is normally ~60 KB;
+ *  this is the backstop for a direct post or a browser without canvas. */
+const AVATAR_MAX_BYTES = 8 * 1024 * 1024;
 
 export async function saveAvatar(formData: FormData) {
   const user = await requireUser();
@@ -352,19 +354,23 @@ export async function saveAvatar(formData: FormData) {
     fail("Profile picture must be a PNG, JPEG, WebP, or GIF.");
   }
   if (image.size > AVATAR_MAX_BYTES) {
-    fail(`That image is ${(image.size / 1e6).toFixed(1)} MB — the limit is 2 MB.`);
+    fail(`That image is ${(image.size / 1e6).toFixed(1)} MB — the limit is 8 MB.`);
   }
   const bytes = Buffer.from(await image.arrayBuffer());
+  // The picture is served from a fixed URL, so the version is what tells the
+  // browser this is a different image.
   getDb()
-    .prepare("UPDATE users SET avatar = ?, avatar_type = ? WHERE id = ?")
-    .run(bytes, image.type, user.id);
+    .prepare("UPDATE users SET avatar = ?, avatar_type = ?, avatar_version = ? WHERE id = ?")
+    .run(bytes, image.type, String(Date.now()), user.id);
   revalidatePath("/", "layout");
   redirect("/profile?saved=1");
 }
 
 export async function removeAvatar() {
   const user = await requireUser();
-  getDb().prepare("UPDATE users SET avatar = NULL, avatar_type = NULL WHERE id = ?").run(user.id);
+  getDb()
+    .prepare("UPDATE users SET avatar = NULL, avatar_type = NULL, avatar_version = NULL WHERE id = ?")
+    .run(user.id);
   revalidatePath("/", "layout");
   redirect("/profile?saved=1");
 }

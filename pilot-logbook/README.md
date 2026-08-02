@@ -78,6 +78,14 @@ stays local in `data/logbook.db` (SQLite).
     then `node scripts/build-registry.mjs <dir>`. Produces
     `data/faa-registry.db` (~19 MB, 315k registrations), which is gitignored and
     opened read-only and lazily. The FAA reissues the file regularly.
+- **What do I need?** (top of the dashboard) — the currency cards say what your
+  state is; this turns that into the list of things to go and fly: "6 approaches
+  and 1 hold to regain instrument currency", "2 full-stop night landings to carry
+  passengers at night", the flight review or medical when either is close. Only
+  the shortfall is asked for, blockers sort ahead of warnings, and anything
+  comfortably current stays off the list. It knows the 61.57(d) cliff — once
+  instrument currency has been lapsed more than six calendar months it says an
+  IPC instead of tasks. Rules live in `lib/planner.ts` as pure functions.
 - **FAA currency** (dashboard) — four cards, each listing its checks as rows so
   related limits stay together. Passenger currency holds day and night in one
   card (split per category/class where profiles exist), and the medical card
@@ -131,7 +139,7 @@ stays local in `data/logbook.db` (SQLite).
 - **Import/Export** — CSV import recognizes this app's own export plus common
   ForeFlight/LogTen column names (now including Holds), skips preamble sections
   and bad rows. Export downloads the full logbook as CSV (re-imports cleanly).
-- **Airport lookup** (on Resources) — search the 24,048 airports in the contiguous
+- **Airport lookup** (`/resources/airports`) — search the 24,048 airports in the contiguous
   US by identifier, name, or city. Each shows runway lengths/widths/surface and
   a schematic runway layout drawn from true headings, radio frequencies in
   chart-supplement order, fuel and repair services, a link to the official FAA
@@ -145,7 +153,7 @@ stays local in `data/logbook.db` (SQLite).
     the Chart Supplement — and each airport links to its own Chart Supplement
     volume PDF (the volume comes from the d-TPP metafile), which carries the
     full entry including FBOs and services.
-- **Refresh All Data** (on Resources) — one button
+- **Refresh All Data** (bottom of Resources) — one button
   rebuilds everything that expires: airport data (28-day chart cycle) and the
   FAR/AIM copy, with the aircraft registry as an opt-in extra since it's a much
   larger download. It runs detached so the request returns immediately, writing
@@ -161,17 +169,43 @@ stays local in `data/logbook.db` (SQLite).
   beyond — and thins its labels so a long range stays readable. Empty buckets
   are kept so gaps in flying show as gaps. Every other chart respects the same
   range.
-- **Resources** (nav tab) — the flight-planning and reference page, holding the
-  airport lookup, live weather, and the FAR/AIM search.
-- **FAR / AIM search** (on Resources) — a local, full-text searchable copy of 18
-  pilot-relevant 14 CFR parts (1,334 sections) and the AIM (215 paragraphs), with
-  FTS5 ranking, highlighted snippets, expandable full text, and a link to the
-  official source. Typing a bare citation like `61.57` jumps straight to it.
-- **Weather** (on Resources, per selected airport) — current METAR and TAF from
+- **Resources** (nav tab) — a hub linking to the three flight-planning tools —
+  airport lookup, performance, and FAR/AIM search — each on its own page so no
+  one page carries all of it. The Reference Data / Refresh All Data card sits at
+  the bottom of the hub.
+- **FAR / AIM search** (`/resources/regulations`) — a local, full-text searchable
+  copy of 18 pilot-relevant 14 CFR parts (1,296 sections) and the AIM (432
+  paragraphs), with FTS5 ranking, highlighted snippets, expandable full text, and
+  a link to the official source. Typing a bare citation like `61.57` jumps
+  straight to it.
+- **Performance** (`/resources/performance`) — pressure altitude, ISA deviation
+  and density altitude from the standard atmosphere, plus per-runway head/tail
+  and crosswind components against the FAA's published true headings (which is
+  also what a METAR wind is referenced to). Pick an airport and elevation,
+  altimeter, temperature and wind prefill from the current observation.
+  Takeoff and landing distance comes from one of two places, never from a guess:
+  - **PA-28-181 (Piper Archer)** — tick the box and it reads the aircraft's own
+    POH charts (Piper report VB-2960, Section 5, figures 5-7, 5-11, 5-41, 5-43).
+    Those figures are graphical nomograms printed as scanned images, so the curve
+    families were traced off the page; see `scripts/pohtrace/README.md` for the
+    method and `lib/pa28-181-charts.ts` for the result. Walking the traced curves
+    reproduces each figure's own printed worked example to within 2.1%. Inputs
+    outside the printed envelope — over gross, past ISA+35, above the altitude or
+    wind axis, or any tailwind — are refused with the reason rather than
+    extrapolated.
+  - **Anything else** — leave the box unticked and you copy the four AFM/POH
+    values that bracket today's pressure altitude and temperature; it does the
+    bilinear arithmetic and refuses to extrapolate outside the bracket.
+
+  Either way your own AFM correction percentages (grass, slope, other) apply on
+  top, and no safety factor is added. Rules live in `lib/performance.ts` and
+  `lib/pohcharts.ts` as pure functions.
+- **Weather** (with a looked-up airport) — current METAR and TAF from
   the Aviation Weather Center's public API, the only live data in the app. Shows
   the flight category (VFR/MVFR/IFR/LIFR in the conventional aviation colours),
   decoded wind, visibility, sky/ceiling, temp/dewpoint and altimeter, plus the
-  raw text, which is authoritative. Cached ~2 minutes. Every failure path —
+  raw text, which is authoritative. The TAF is broken out one change group per
+  line (FM/BECMG/TEMPO/PROB), the way official products present it. Cached ~2 minutes. Every failure path —
   service down, no station, no TAF — degrades to a message rather than an error,
   and the observation age is shown so staleness is visible.
   - Build it: `node scripts/build-reference.mjs`. Pulls 14 CFR from the eCFR API
@@ -179,10 +213,13 @@ stays local in `data/logbook.db` (SQLite).
     AIM from faa.gov, into `data/reference.db` (~7.5 MB, gitignored). The page
     degrades to an explanation if the file is missing. Re-run periodically;
     both sources are amended regularly.
-- **Profile pictures** — upload a PNG/JPEG/WebP/GIF up to 2 MB on your profile.
-  Stored as a BLOB in your own logbook file and served only to your own session
-  (`/api/avatar` takes no user id, so one pilot can't fetch another's). Falls
-  back to initials in your accent color.
+- **Profile pictures** — upload a PNG/JPEG/WebP/GIF up to 8 MB on your profile,
+  then drag and zoom to frame it. The crop happens in the browser and only the
+  chosen square is sent, so an 8 MB phone photo is stored as a ~50 KB 512x512
+  JPEG. Stored as a BLOB in your own logbook file and served only to your own
+  session (`/api/avatar` takes no user id, so one pilot can't fetch another's;
+  `users.avatar_version` busts the browser cache on re-upload). Falls back to
+  initials in your accent color.
 - **Erase data** (Settings) — two irreversible options, each gated by typing
   your own name exactly: *erase logbook data* clears every flight, aircraft,
   certificate, medical, and endorsement while keeping the account and its
@@ -203,6 +240,9 @@ node scripts/test-csv.mts --seed   # also seeds sample flights for testpilot@exa
 node scripts/test-currency.mts     # 61.56 reset rules + 61.23(d) medical durations
 node scripts/test-username.mts     # name shape rules + profanity/slur screen
 node scripts/test-registry.mts     # tail-number autofill (skips live checks if unbuilt)
+node scripts/test-performance.mts  # pressure/density altitude, wind components, POH interpolation
+node scripts/test-planner.mts      # the dashboard "What do I need?" action list
+node scripts/test-pohcharts.mts    # PA-28-181 chart digitisation vs the POH's printed examples
 ```
 
 ## Schema changes

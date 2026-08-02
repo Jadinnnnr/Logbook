@@ -808,6 +808,283 @@ tr.totals-row td {
   flex: 1;
 }
 
+/* ---------- Profile picture cropper ---------- */
+.crop {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.crop-view {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--page);
+  border: 1px solid var(--border);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.crop-view:active {
+  cursor: grabbing;
+}
+.crop-view:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.crop-view img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  transform-origin: top left;
+}
+/* Shows the circle the picture will be seen through without cropping to it —
+   the stored image stays square. */
+.crop-mask {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px color-mix(in srgb, var(--page) 62%, transparent);
+  pointer-events: none;
+}
+
+/* ---------- "What do I need?" planner ----------
+   State is carried by the wording of every line, not only the dot colour. */
+.plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.plan-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--grid);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.plan-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.plan-item .dot,
+.plan-clear .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  /* Nudge onto the first line's baseline. */
+  transform: translateY(-1px);
+}
+.plan-clear {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.plan-clear .dot {
+  background: var(--status-good);
+}
+.plan-text {
+  flex: 1;
+  color: var(--text-secondary);
+}
+.plan-need {
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.plan-note {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.plan-ref {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex: none;
+}
+@media (max-width: 560px) {
+  .plan-ref {
+    display: none;
+  }
+}
+
+/* Visually hidden but still read out — for labels a sighted user gets from
+   the surrounding layout. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Performance calculator ---------- */
+.perf-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px 16px;
+}
+.perf-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 20px;
+}
+.perf-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.perf-result-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.perf-result-value {
+  font-size: 20px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.perf-result-value.perf-headline {
+  font-size: 26px;
+  color: var(--accent);
+}
+.perf-result-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  margin-bottom: 12px;
+}
+.perf-table th,
+.perf-table td {
+  text-align: left;
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--grid);
+  font-variant-numeric: tabular-nums;
+}
+.perf-table thead th {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.perf-table tbody th {
+  font-weight: 650;
+}
+/* A tailwind or an over-limit crosswind is the whole point of the table —
+   colour is a hint, and the cell text always says so in words too. */
+.perf-row-warn td,
+.perf-row-warn th {
+  background: color-mix(in srgb, var(--status-critical) 12%, transparent);
+}
+.perf-poh {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px 24px;
+  align-items: start;
+}
+.perf-axis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px 12px;
+}
+.perf-grid caption {
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 6px;
+}
+.perf-grid td {
+  padding-right: 8px;
+}
+.perf-grid input {
+  width: 100%;
+  min-width: 80px;
+}
+.perf-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--page);
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.perf-toggle input {
+  margin-top: 3px;
+  flex: none;
+}
+.perf-toggle:focus-within {
+  border-color: var(--accent);
+}
+
+/* ---------- Resources hub ---------- */
+.crumb {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.res-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.res-link {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
+}
+.res-link:hover,
+.res-link:focus-visible {
+  border-color: var(--accent);
+}
+.res-link-title {
+  font-size: 17px;
+  font-weight: 650;
+}
+.res-link-blurb {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  /* Push the call to action to the bottom so the cards line up. */
+  flex: 1;
+}
+.res-link-go {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
 /* ---------- Reference search ---------- */
 .ref-search {
   display: flex;

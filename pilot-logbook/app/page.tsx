@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { aircraftByTail, credentialsForUser, flightsForUser } from "@/lib/db";
 import {
@@ -9,6 +8,7 @@ import {
   CurrencyState,
   CurrencyItem,
 } from "@/lib/currency";
+import { computeActions } from "@/lib/planner";
 
 const STATE_LABEL: Record<CurrencyState, string> = {
   good: "✓ Current",
@@ -58,6 +58,7 @@ export default async function Dashboard() {
   const credentials = credentialsForUser(user);
   const currency = computeCurrency(flights, byTail, credentials);
   const medical = credentials.medical;
+  const actions = computeActions(flights, byTail, credentials);
   const special = computeSpecialTime(flights, byTail);
   const specialTiles: [string, number][] = [
     ["Complex", special.complex],
@@ -73,6 +74,31 @@ export default async function Dashboard() {
   return (
     <main className="container">
       <h1>Dashboard</h1>
+
+      {/* The currency cards below say what your state is; this says what you'd
+          have to go and fly about it. */}
+      <div className="card">
+        <h2>What Do I Need?</h2>
+        {actions.length === 0 ? (
+          <p className="plan-clear">
+            <span className="dot" aria-hidden />
+            Nothing outstanding — every currency below is good, with room to spare.
+          </p>
+        ) : (
+          <ul className="plan-list">
+            {actions.map((a) => (
+              <li key={a.id} className={`plan-item status-${a.state}`}>
+                <span className="dot" aria-hidden />
+                <span className="plan-text">
+                  <span className="plan-need">{a.need}</span> {a.purpose}
+                  {a.note && <span className="plan-note">{a.note}</span>}
+                </span>
+                <span className="plan-ref">{a.reference}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       <div className="grid-tiles">
         <div className="tile">

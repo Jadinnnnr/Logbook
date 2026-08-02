@@ -25,20 +25,22 @@ export default async function StatsPage({
     byType.set(t, (byType.get(t) ?? 0) + f.total_time);
   }
   const sorted = [...byType.entries()].sort((a, b) => b[1] - a[1]);
-  const topTypes = sorted.slice(0, 8).map(([label, value]) => ({ label, value }));
+  // Ids namespace the aggregate row so it can't collide with an aircraft type
+  // literally named "Other".
+  const topTypes = sorted.slice(0, 8).map(([label, value]) => ({ id: `type:${label}`, label, value }));
   const otherHours = sorted.slice(8).reduce((s, [, v]) => s + v, 0);
-  if (otherHours > 0) topTypes.push({ label: "Other", value: otherHours });
+  if (otherHours > 0) topTypes.push({ id: "types:rest", label: "Other", value: otherHours });
 
   const other = Math.max(0, totals.totalTime - totals.pic - totals.sic - totals.dualReceived);
   const role = [
-    { label: "PIC", value: totals.pic },
-    { label: "SIC", value: totals.sic },
-    { label: "Dual Received", value: totals.dualReceived },
-    ...(other > 0.05 ? [{ label: "Other", value: other }] : []),
+    { id: "pic", label: "PIC", value: totals.pic },
+    { id: "sic", label: "SIC", value: totals.sic },
+    { id: "dual", label: "Dual Received", value: totals.dualReceived },
+    ...(other > 0.05 ? [{ id: "role-other", label: "Other", value: other }] : []),
   ];
   const conditions = [
-    { label: "Day", value: Math.max(0, totals.totalTime - totals.night) },
-    { label: "Night", value: totals.night },
+    { id: "day", label: "Day", value: Math.max(0, totals.totalTime - totals.night) },
+    { id: "night", label: "Night", value: totals.night },
   ];
 
   const spanText = range.from ? `${range.from} to ${range.to}` : `through ${range.to}`;

@@ -8,8 +8,18 @@ interface Tooltip {
   text: string;
 }
 
+/**
+ * One plotted bar or segment. `id` is the React key: labels are display text and
+ * repeat across a series (two Augusts in a multi-year range), so they can't be keys.
+ */
+export interface ChartDatum {
+  id: string;
+  label: string;
+  value: number;
+}
+
 /** Column chart of hours per time bucket. Single series — no legend; per-bar hover tooltip. */
-export function HoursOverTimeChart({ data }: { data: { label: string; value: number }[] }) {
+export function HoursOverTimeChart({ data }: { data: ChartDatum[] }) {
   const [tip, setTip] = useState<Tooltip | null>(null);
   const W = 720;
   const H = 240;
@@ -46,7 +56,7 @@ export function HoursOverTimeChart({ data }: { data: { label: string; value: num
           const r = Math.min(4, h);
           const cx = x + barW / 2;
           return (
-            <g key={d.label}>
+            <g key={d.id}>
               {d.value > 0 && (
                 <path
                   d={`M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + barW - r},${y} Q${x + barW},${y} ${x + barW},${y + r} L${x + barW},${y + h} Z`}
@@ -82,12 +92,12 @@ export function HoursOverTimeChart({ data }: { data: { label: string; value: num
 }
 
 /** Horizontal bars for hours by category (aircraft type). One hue; direct value labels. */
-export function HoursByTypeChart({ data }: { data: { label: string; value: number }[] }) {
+export function HoursByTypeChart({ data }: { data: ChartDatum[] }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {data.map((d) => (
-        <div key={d.label} style={{ display: "grid", gridTemplateColumns: "90px 1fr 56px", gap: 10, alignItems: "center" }}>
+        <div key={d.id} style={{ display: "grid", gridTemplateColumns: "90px 1fr 56px", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis" }}>
             {d.label}
           </span>
@@ -114,7 +124,7 @@ export function HoursByTypeChart({ data }: { data: { label: string; value: numbe
 const SERIES_VARS = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
 
 /** One horizontal stacked bar for a part-to-whole breakdown, with legend + direct labels. */
-export function BreakdownBar({ segments }: { segments: { label: string; value: number }[] }) {
+export function BreakdownBar({ segments }: { segments: ChartDatum[] }) {
   const total = segments.reduce((s, x) => s + x.value, 0);
   const shown = segments.filter((s) => s.value > 0);
   if (total <= 0) return <p className="muted">No hours logged yet.</p>;
@@ -125,7 +135,7 @@ export function BreakdownBar({ segments }: { segments: { label: string; value: n
           const i = segments.indexOf(s);
           return (
             <div
-              key={s.label}
+              key={s.id}
               style={{ width: `${(s.value / total) * 100}%`, background: SERIES_VARS[i % SERIES_VARS.length], minWidth: 2 }}
               title={`${s.label}: ${s.value.toFixed(1)} hrs (${((s.value / total) * 100).toFixed(0)}%)`}
             />
@@ -134,7 +144,7 @@ export function BreakdownBar({ segments }: { segments: { label: string; value: n
       </div>
       <div className="legend">
         {segments.map((s, i) => (
-          <span key={s.label}>
+          <span key={s.id}>
             <span className="swatch" style={{ background: SERIES_VARS[i % SERIES_VARS.length] }} />
             {s.label}: {s.value.toFixed(1)} hrs
             {total > 0 && ` (${((s.value / total) * 100).toFixed(0)}%)`}

@@ -32,7 +32,7 @@ export function AirportResults({ results, query }: { results: AirportSummary[]; 
     <ul className="airport-results">
       {results.map((a) => (
         <li key={a.ident}>
-          <Link href={`/resources?airport=${encodeURIComponent(a.ident)}#airports`}>
+          <Link href={`/resources/airports?airport=${encodeURIComponent(a.ident)}`}>
             <strong>{a.ident}</strong> {a.name}
             <span className="muted">
               {" "}

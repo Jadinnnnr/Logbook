@@ -108,7 +108,7 @@ function bucketOf(date: string, bucket: ResolvedRange["bucket"]): { key: string;
 export function hoursOverTime(
   flights: Flight[],
   range: ResolvedRange
-): { label: string; value: number }[] {
+): { id: string; label: string; value: number }[] {
   const inRange = flightsInRange(flights, range);
   const start = range.from ?? inRange.reduce<string>((m, f) => (f.date < m ? f.date : m), range.to);
   const totals = new Map<string, { label: string; value: number }>();
@@ -135,7 +135,9 @@ export function hoursOverTime(
     totals.set(b.key, entry);
   }
 
+  // The bucket key ("2025-08") is the datum's identity — labels like "Aug" repeat
+  // across years and would collide as React keys.
   return [...totals.entries()]
     .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([, v]) => ({ ...v, value: Math.round(v.value * 10) / 10 }));
+    .map(([key, v]) => ({ ...v, id: key, value: Math.round(v.value * 10) / 10 }));
 }

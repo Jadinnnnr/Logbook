@@ -28,6 +28,8 @@ export interface User {
   /** Profile picture bytes and their MIME type, or null when unset. */
   avatar: Buffer | null;
   avatar_type: string | null;
+  /** Bumped on every upload; used to bust the browser's cache of /api/avatar. */
+  avatar_version: string | null;
   created_at: string;
 }
 
@@ -175,6 +177,7 @@ CREATE TABLE IF NOT EXISTS users (
   date_of_birth TEXT,
   avatar BLOB,
   avatar_type TEXT,
+  avatar_version TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS flights (
@@ -331,6 +334,9 @@ function migrate(db: Database.Database) {
   if (!userCols.includes("avatar")) {
     db.exec("ALTER TABLE users ADD COLUMN avatar BLOB");
     db.exec("ALTER TABLE users ADD COLUMN avatar_type TEXT");
+  }
+  if (!userCols.includes("avatar_version")) {
+    db.exec("ALTER TABLE users ADD COLUMN avatar_version TEXT");
   }
   if (!userCols.includes("username")) {
     db.exec("ALTER TABLE users ADD COLUMN username TEXT");
