@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { saveSettings, eraseLogbookData, deleteAccount } from "@/lib/actions";
+import { saveSettings, changePassword, eraseLogbookData, deleteAccount } from "@/lib/actions";
 import { dataCountsForUser } from "@/lib/db";
 import { THEMES, DEFAULT_CUSTOM_HEX } from "@/lib/theme";
 import AccentPicker from "@/components/AccentPicker";
 
+/** Ties the password controls in the Account card to their form element. */
+const PASSWORD_FORM = "change-password";
+
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; error?: string; erased?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; erased?: string; password?: string }>;
 }) {
   const user = await requireUser();
-  const { saved, error, erased } = await searchParams;
+  const { saved, error, erased, password } = await searchParams;
   const counts = dataCountsForUser(user.id).filter(([n]) => n > 0);
   const summary = counts.length
     ? counts.map(([n, one, many]) => `${n} ${n === 1 ? one : many}`).join(", ")
@@ -22,6 +25,11 @@ export default async function SettingsPage({
       {error && <div className="error">{error}</div>}
       {saved && <div className="notice">Settings saved.</div>}
       {erased && <div className="notice">Your logbook data has been erased.</div>}
+      {password && (
+        <div className="notice">
+          Password changed. Any other browser signed in to this logbook has been signed out.
+        </div>
+      )}
 
       <form action={saveSettings} className="stack" style={{ maxWidth: 620 }}>
         <div className="card">
@@ -39,6 +47,60 @@ export default async function SettingsPage({
             in. Certificates, medicals, and endorsements live on your{" "}
             <Link href="/profile">profile</Link>.
           </p>
+
+          {/* These controls sit inside the Account card but belong to the
+              PASSWORD_FORM element further down: a form can't be nested inside
+              the settings one, and `form=` is how HTML lets a control live
+              somewhere other than its owning form. Because their owner is that
+              form, Save Settings neither submits nor validates them. */}
+          <div className="account-password">
+            <div>
+              <h3>Password</h3>
+              <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                Changing it signs out every other browser you&rsquo;re signed in on. This one stays
+                signed in.
+              </p>
+            </div>
+            <div className="field" style={{ maxWidth: 320 }}>
+              <label htmlFor="current_password">Current password</label>
+              <input
+                id="current_password"
+                name="current_password"
+                type="password"
+                form={PASSWORD_FORM}
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="field" style={{ maxWidth: 320 }}>
+              <label htmlFor="new_password">New password</label>
+              <input
+                id="new_password"
+                name="new_password"
+                type="password"
+                form={PASSWORD_FORM}
+                required
+                minLength={8}
+                autoComplete="new-password"
+              />
+              <span className="field-hint">At least 8 characters.</span>
+            </div>
+            <div className="field" style={{ maxWidth: 320 }}>
+              <label htmlFor="confirm_password">Confirm new password</label>
+              <input
+                id="confirm_password"
+                name="confirm_password"
+                type="password"
+                form={PASSWORD_FORM}
+                required
+                minLength={8}
+                autoComplete="new-password"
+              />
+            </div>
+            <button type="submit" form={PASSWORD_FORM} className="btn-secondary">
+              Change Password
+            </button>
+          </div>
         </div>
 
         <div className="card">
@@ -75,6 +137,11 @@ export default async function SettingsPage({
           <button type="submit">Save Settings</button>
         </div>
       </form>
+
+      {/* The owner of the password controls up in the Account card. It carries
+          no fields of its own — it only exists out here because it cannot be
+          nested inside the settings form. */}
+      <form action={changePassword} id={PASSWORD_FORM} />
 
       {/* Outside the settings form — nesting forms is invalid, and these must
           not be submittable by the Save button. */}

@@ -9,20 +9,28 @@ const PER_PAGE = 15;
 export default async function FlightsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; added?: string }>;
 }) {
   const user = await requireUser();
   const allFlights = flightsForUser(user.id);
   const totals = computeTotals(allFlights);
 
+  const params = await searchParams;
   const pageCount = Math.max(1, Math.ceil(allFlights.length / PER_PAGE));
-  const page = Math.min(Math.max(1, Number((await searchParams).page) || 1), pageCount);
+  const page = Math.min(Math.max(1, Number(params.page) || 1), pageCount);
   const start = (page - 1) * PER_PAGE;
   const flights = allFlights.slice(start, start + PER_PAGE);
 
   return (
     <main className="container">
       <h1>Flights</h1>
+      {params.added && (
+        <div className="notice">
+          {params.added} wasn&rsquo;t in your fleet, so a profile was created for it. Fill in the
+          rest on the <Link href="/aircraft">Aircraft page</Link> — the 61.31 flags in particular
+          can&rsquo;t be looked up.
+        </div>
+      )}
       <div className="page-actions">
         <Link href="/flights/new" className="btn">+ Log Flight</Link>
         <span className="muted">

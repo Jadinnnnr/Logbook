@@ -13,6 +13,7 @@ import fsSync from "fs";
 import path from "path";
 import { createSession, destroySession, requireUser } from "./auth";
 import { parseImport } from "./csv";
+import { lookupTailNumber, type RegistryAircraft } from "./registry";
 
 function str(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -95,9 +96,12 @@ const FLIGHT_FIELDS = `date, aircraft_type, tail_number, from_airport, to_airpor
   actual_instrument, simulated_instrument, day_landings, night_landings,
   night_full_stop_landings, approaches, holds, remarks`;
 
-function flightValues(fd: FormData, userId: number): (string | number)[] {
-  // If an aircraft profile was chosen, its tail/type override the free-text
-  // fields (which the form disables when a profile is selected).
+/**
+ * Which aircraft a submitted flight refers to. If a profile was chosen its
+ * tail/type override the free-text fields (which the form disables when a
+ * profile is selected).
+ */
+function resolveAircraft(fd: FormData, userId: number): { tail: string; type: string } {
   let tail = str(fd, "tail_number").toUpperCase();
   let type = str(fd, "aircraft_type").toUpperCase();
   const aircraftId = str(fd, "aircraft_id");
@@ -110,6 +114,58 @@ function flightValues(fd: FormData, userId: number): (string | number)[] {
       type = a.aircraft_type.toUpperCase();
     }
   }
+  return { tail, type };
+}
+
+/**
+ * Give a just-flown tail number a profile in the fleet if it hasn't got one,
+ * prefilled from the FAA registry where that database is present. Returns the
+ * tail when a profile was created, so the caller can say so.
+ *
+ * Best effort by design: the flight is already written by the time this runs,
+ * and no problem building a fleet entry should surface to the pilot as a
+ * failure to log the flight.
+ */
+function ensureAircraftProfile(userId: number, tail: string, type: string): string | null {
+  if (!tail) return null;
+  const db = getDb();
+  const existing = db
+    .prepare("SELECT id FROM aircraft WHERE user_id = ? AND tail_number = ? COLLATE NOCASE")
+    .get(userId, tail);
+  if (existing) return null;
+
+  let reg: RegistryAircraft | null = null;
+  try {
+    reg = lookupTailNumber(tail);
+  } catch {
+    // No registry database, or it's unreadable — a bare profile still beats none.
+  }
+
+  try {
+    db.prepare(
+      `INSERT OR IGNORE INTO aircraft
+         (user_id, tail_number, aircraft_type, make_model, category_class, is_high_performance, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      userId,
+      tail,
+      // What the pilot typed wins; the registry's guess is the fallback.
+      type || reg?.typeCode || "",
+      reg?.makeModel ?? "",
+      reg?.categoryClass || "ASEL",
+      reg?.highPerformance ? 1 : 0,
+      // The 61.31 flags other than horsepower can't be inferred from the
+      // registry, so say where this came from and that it wants a look.
+      "Added automatically when a flight was logged in it. Check the category/class and the complex, TAA, and tailwheel flags."
+    );
+  } catch {
+    return null;
+  }
+  return tail;
+}
+
+function flightValues(fd: FormData, aircraft: { tail: string; type: string }): (string | number)[] {
+  const { tail, type } = aircraft;
   return [
     str(fd, "date"),
     type,
@@ -142,7 +198,8 @@ export async function saveFlight(formData: FormData) {
     redirect((id ? `/flights/${id}/edit` : "/flights/new") + "?error=" + encodeURIComponent("Date is required."));
   }
   const db = getDb();
-  const values = flightValues(formData, user.id);
+  const aircraft = resolveAircraft(formData, user.id);
+  const values = flightValues(formData, aircraft);
   if (id) {
     const owned = db.prepare("SELECT id FROM flights WHERE id = ? AND user_id = ?").get(Number(id), user.id);
     if (owned) {
@@ -153,8 +210,14 @@ export async function saveFlight(formData: FormData) {
     const placeholders = FLIGHT_FIELDS.split(",").map(() => "?").join(", ");
     db.prepare(`INSERT INTO flights (user_id, ${FLIGHT_FIELDS}) VALUES (?, ${placeholders})`).run(user.id, ...values);
   }
+
+  // Flying a tail number is the moment we learn the aircraft exists, so adopt
+  // it into the fleet rather than making the pilot go and add it by hand.
+  const added = ensureAircraftProfile(user.id, aircraft.tail, aircraft.type);
+  if (added) revalidatePath("/aircraft");
+
   revalidatePath("/flights");
-  redirect("/flights");
+  redirect(added ? `/flights?added=${encodeURIComponent(added)}` : "/flights");
 }
 
 export async function deleteFlight(formData: FormData) {
@@ -236,6 +299,41 @@ export async function saveSettings(formData: FormData) {
  * Detached so the request returns immediately — a full refresh takes minutes —
  * with progress written to data/refresh-status.json for the dashboard to read.
  */
+export async function changePassword(formData: FormData) {
+  const user = await requireUser();
+  const current = formData.get("current_password");
+  const next = formData.get("new_password");
+  const confirm = formData.get("confirm_password");
+  const fail = (message: string) => {
+    redirect("/settings?error=" + encodeURIComponent(message));
+  };
+
+  if (typeof current !== "string" || !bcrypt.compareSync(current, user.password_hash)) {
+    fail("Your current password isn't right.");
+  }
+  if (typeof next !== "string" || next.length < 8) {
+    fail("Your new password must be at least 8 characters.");
+  }
+  if (next !== confirm) fail("The two new passwords don't match.");
+  if (bcrypt.compareSync(next as string, user.password_hash)) {
+    fail("That's already your password.");
+  }
+
+  const db = getDb();
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
+    bcrypt.hashSync(next as string, 10),
+    user.id
+  );
+
+  // A password change is how someone locks out a session they no longer trust,
+  // so drop every other one. createSession re-issues this browser's cookie, so
+  // the pilot doing the changing stays signed in.
+  db.prepare("DELETE FROM sessions WHERE user_id = ?").run(user.id);
+  await createSession(user.id);
+
+  redirect("/settings?password=1");
+}
+
 export async function refreshData(formData: FormData) {
   await requireUser();
   if (refreshRunning()) redirect("/resources?refresh=already");

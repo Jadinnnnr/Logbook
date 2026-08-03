@@ -8,23 +8,35 @@ const CATEGORY_TITLE: Record<FlightCategory, string> = {
   UNKNOWN: "Flight category not reported",
 };
 
+/**
+ * Glue a phrase together so it can't be split across lines. These values sit in
+ * a narrow column, and a wrap between a number and its unit — or between a
+ * cloud cover and its altitude — reads as two separate facts.
+ */
+function noBreak(s: string): string {
+  return s.replace(/ /g, " ");
+}
+
 function windText(m: NonNullable<WeatherResult["metar"]>): string {
   if (m.windSpeed === null) return "—";
   if (m.windSpeed === 0) return "Calm";
   const dir = m.windDir === null ? "variable" : `${String(m.windDir).padStart(3, "0")}°`;
-  const gust = m.windGust ? ` gusting ${m.windGust} kt` : "";
-  return `${dir} at ${m.windSpeed} kt${gust}`;
+  const gust = m.windGust ? ` ${noBreak(`gusting ${m.windGust} kt`)}` : "";
+  return `${noBreak(`${dir} at ${m.windSpeed} kt`)}${gust}`;
 }
 
 function ceilingText(m: NonNullable<WeatherResult["metar"]>): string {
   if (m.clouds.length === 0) return "Sky clear";
   // The ceiling is the lowest broken or overcast layer.
   const ceiling = m.clouds.find((c) => ["BKN", "OVC", "OVX"].includes(c.cover.toUpperCase()));
+  // Each layer holds together; the list breaks at the commas between them.
   const layers = m.clouds
-    .map((c) => `${cloudLabel(c.cover)}${c.baseFtAgl !== null ? ` ${c.baseFtAgl.toLocaleString()} ft` : ""}`)
+    .map((c) =>
+      noBreak(`${cloudLabel(c.cover)}${c.baseFtAgl !== null ? ` ${c.baseFtAgl.toLocaleString()} ft` : ""}`)
+    )
     .join(", ");
   return ceiling?.baseFtAgl != null
-    ? `${layers} · ceiling ${ceiling.baseFtAgl.toLocaleString()} ft`
+    ? `${layers} · ${noBreak(`ceiling ${ceiling.baseFtAgl.toLocaleString()} ft`)}`
     : layers;
 }
 

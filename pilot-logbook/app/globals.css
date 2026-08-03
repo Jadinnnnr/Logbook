@@ -1064,9 +1064,20 @@ tr.totals-row td {
   text-decoration: none;
   color: inherit;
 }
+/* The card is one big anchor, so the global `a:hover` underline would strike
+   through the blurb as well. Cancel it on the card and re-apply it to just the
+   two lines that read as links — each drawing in its own text colour, since a
+   decoration takes the colour of the element that declares it. */
 .res-link:hover,
 .res-link:focus-visible {
   border-color: var(--accent);
+  text-decoration: none;
+}
+.res-link:hover .res-link-title,
+.res-link:focus-visible .res-link-title,
+.res-link:hover .res-link-go,
+.res-link:focus-visible .res-link-go {
+  text-decoration: underline;
 }
 .res-link-title {
   font-size: 17px;
@@ -1248,14 +1259,24 @@ tr.totals-row td {
   margin: 0 0 10px;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 4px 18px;
+  /* Wide enough to leave a usable column for the value next to its label;
+     narrower than this and the grid drops to one fact per row. The min() keeps
+     that floor from overflowing a phone narrower than the floor itself. */
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 8px 24px;
   font-size: 13.5px;
+}
+/* Label and value are separate columns so a long value wraps under itself. As
+   a single inline flow it wrapped back to the left edge, under the label —
+   which is what made a gusting wind or a three-layer sky look broken. */
+.wx-facts li {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
 }
 .wx-facts li span {
   color: var(--text-muted);
-  display: inline-block;
-  min-width: 116px;
 }
 /* One change group per line; continuations indent under the header so the
    FM/BECMG/TEMPO periods are scannable. */
@@ -1477,4 +1498,82 @@ button:disabled {
 .expiring {
   color: var(--status-critical);
   font-weight: 600;
+}
+
+/* ---------- Idle-session warning ---------- */
+/* Sits above everything and takes the whole viewport, so the countdown can't be
+   scrolled away from or clicked past. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.modal {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px 24px 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.modal-title {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+.modal-body {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.modal-count {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+/* Drains left-to-right as the countdown runs — the same information as the
+   number, for anyone reading the shape of the dialog rather than the text. */
+.modal-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .modal-progress { transition: width 250ms linear; }
+}
+
+/* Password block inside the Account card. Its controls belong to a separate
+   form (see the form= attributes in app/settings/page.tsx); this rule only
+   sets it apart from the name field above. */
+.account-password {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  /* Mirrors form.stack: these controls belong to a form they don't sit inside,
+     so they can't inherit its spacing. */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.account-password h3 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0 0 4px;
+}
+.account-password > button {
+  align-self: flex-start;
 }
