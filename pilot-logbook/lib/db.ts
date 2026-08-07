@@ -285,6 +285,15 @@ CREATE TABLE IF NOT EXISTS schema_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+-- Live sign-ins. The server, not the cookie, decides when a session is stale:
+-- last_seen is pushed forward on every request, and lib/auth expires the row
+-- once it falls outside the idle window.
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  last_seen INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 // The username unique index is created in migrate(), after the column is
 // guaranteed to exist on databases that predate it.

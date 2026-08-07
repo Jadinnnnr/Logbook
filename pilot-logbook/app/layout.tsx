@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
+import SessionTimeout from "@/components/SessionTimeout";
 import { getSessionUser } from "@/lib/auth";
 import { CUSTOM_ACCENT } from "@/lib/theme";
 import { deriveAccent, isHexColor } from "@/lib/color";
@@ -40,6 +41,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <Nav />
         {children}
+        {/* Only signed-in pages have a session to lose. */}
+        {user && <SessionTimeout />}
       </body>
     </html>
   );
