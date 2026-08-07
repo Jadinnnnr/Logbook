@@ -3,7 +3,7 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getDb, User, Flight, userIdWithName } from "./db";
+import { getDb, User, Flight, userIdWithName, writeArchive } from "./db";
 import { nameError } from "./username";
 import { THEMES, ACCENTS, CUSTOM_ACCENT } from "./theme";
 import { isHexColor } from "./color";
@@ -13,6 +13,9 @@ import fsSync from "fs";
 import path from "path";
 import { createSession, destroySession, requireUser } from "./auth";
 import { parseImport } from "./csv";
+import type { BackupArchive } from "./backup";
+import { BackupError, BACKUP_VERSION, decodeBackup, recordCount } from "./backup";
+import { devAccounts } from "./devaccounts";
 
 function str(fd: FormData, key: string): string {
   const v = fd.get(key);
@@ -498,4 +501,158 @@ export async function importCsv(formData: FormData) {
       result.flights.length +
       (result.skipped ? "&skipped=" + result.skipped : "")
   );
+}
+
+// ---------- Bookmarks ----------
+
+/**
+ * Saves a bookmark, or renames and refiles one already saved.
+ *
+ * An empty name clears a custom one rather than storing whitespace, so
+ * submitting with the field emptied is how you go back to the plain citation.
+ * `groups` is the complete membership afterwards; omitting the field entirely
+ * leaves existing membership alone, which is what a bare toggle wants.
+ */
+export async function saveBookmark(formData: FormData) {
+  const user = await requireUser();
+  const source = str(formData, "source");
+  const citation = str(formData, "citation");
+  if (!source || !citation) return;
+
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO bookmarks (user_id, source, citation, name) VALUES (?, ?, ?, ?)
+     ON CONFLICT (user_id, source, citation) DO UPDATE SET name = excluded.name`
+  ).run(user.id, source, citation, str(formData, "name"));
+
+  if (formData.has("groups")) {
+    const row = db
+      .prepare("SELECT id FROM bookmarks WHERE user_id = ? AND source = ? AND citation = ?")
+      .get(user.id, source, citation) as { id: number } | undefined;
+    if (row) {
+      // Only this pilot's groups can be joined to, whatever ids were posted.
+      const own = new Set(
+        (db.prepare("SELECT id FROM bookmark_groups WHERE user_id = ?").all(user.id) as {
+          id: number;
+        }[]).map((g) => g.id)
+      );
+      const wanted = formData
+        .getAll("groups")
+        .map((v) => parseInt(String(v), 10))
+        .filter((id) => own.has(id));
+      db.transaction(() => {
+        db.prepare("DELETE FROM bookmark_group_members WHERE bookmark_id = ?").run(row.id);
+        const ins = db.prepare(
+          "INSERT OR IGNORE INTO bookmark_group_members (group_id, bookmark_id) VALUES (?, ?)"
+        );
+        for (const g of wanted) ins.run(g, row.id);
+      })();
+    }
+  }
+  revalidatePath("/resources/regulations");
+}
+
+export async function removeBookmark(formData: FormData) {
+  const user = await requireUser();
+  // The member rows go with it: this connection runs with foreign_keys ON, so
+  // the ON DELETE CASCADE on bookmark_group_members actually fires.
+  getDb()
+    .prepare("DELETE FROM bookmarks WHERE user_id = ? AND source = ? AND citation = ?")
+    .run(user.id, str(formData, "source"), str(formData, "citation"));
+  revalidatePath("/resources/regulations");
+}
+
+/** Creates a group, or does nothing when the pilot already has that name. */
+export async function createBookmarkGroup(formData: FormData) {
+  const user = await requireUser();
+  const name = str(formData, "name");
+  if (!name) return;
+  getDb()
+    .prepare("INSERT OR IGNORE INTO bookmark_groups (user_id, name) VALUES (?, ?)")
+    .run(user.id, name);
+  revalidatePath("/resources/regulations");
+}
+
+export async function renameBookmarkGroup(formData: FormData) {
+  const user = await requireUser();
+  const id = int(formData, "id");
+  const name = str(formData, "name");
+  if (!id || !name) return;
+  // A collision would violate the unique index and throw the rename away, so
+  // refuse it here where the caller can still see nothing happened.
+  const clash = getDb()
+    .prepare("SELECT id FROM bookmark_groups WHERE user_id = ? AND name = ? AND id != ?")
+    .get(user.id, name, id);
+  if (clash) return;
+  getDb()
+    .prepare("UPDATE bookmark_groups SET name = ? WHERE id = ? AND user_id = ?")
+    .run(name, id, user.id);
+  revalidatePath("/resources/regulations");
+}
+
+/**
+ * Deletes the group, not the bookmarks in it — a group is a view onto them,
+ * not a container that owns them.
+ */
+export async function deleteBookmarkGroup(formData: FormData) {
+  const user = await requireUser();
+  getDb()
+    .prepare("DELETE FROM bookmark_groups WHERE id = ? AND user_id = ?")
+    .run(int(formData, "id"), user.id);
+  revalidatePath("/resources/regulations");
+}
+
+// ---------- Backup and restore ----------
+
+export async function restoreBackup(formData: FormData) {
+  const user = await requireUser();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect("/import-export?restoreError=" + encodeURIComponent("Choose a backup file first."));
+  }
+  let archive: BackupArchive;
+  try {
+    archive = decodeBackup(await (file as File).text());
+  } catch (e) {
+    const message = e instanceof BackupError ? e.message : "That file couldn't be read.";
+    redirect("/import-export?restoreError=" + encodeURIComponent(message));
+  }
+  writeArchive(user.id, archive!);
+  revalidatePath("/");
+  redirect("/import-export?restored=" + recordCount(archive!));
+}
+
+// ---------- Developer accounts ----------
+
+/**
+ * Deliberately in the clear. Anyone who can read the source can read it, so
+ * this is a "not by accident" gate, not a real lock — the page itself says so.
+ */
+const DEV_PASSWORD = "AllWhiteGucciSuit";
+
+export async function loadDevAccount(formData: FormData) {
+  const user = await requireUser();
+  if (str(formData, "password") !== DEV_PASSWORD) {
+    redirect("/developer?error=" + encodeURIComponent("Wrong password."));
+  }
+  const wanted = str(formData, "account");
+  const account = devAccounts().find((a) => a.name === wanted);
+  if (!account) redirect("/developer?error=" + encodeURIComponent("No such account."));
+
+  // Reuse the restore path, so a fixture and a backup can't diverge in how they
+  // land in the database.
+  writeArchive(user.id, {
+    formatVersion: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    pilot: { name: account!.name, dateOfBirth: account!.dateOfBirth || null },
+    flights: account!.flights as unknown as Record<string, unknown>[],
+    aircraft: account!.aircraft as unknown as Record<string, unknown>[],
+    certificates: account!.certificates as unknown as Record<string, unknown>[],
+    medicals: account!.medicals as unknown as Record<string, unknown>[],
+    endorsements: account!.endorsements as unknown as Record<string, unknown>[],
+    bookmarkGroups: [],
+    bookmarks: [],
+  });
+  revalidatePath("/");
+  redirect("/developer?loaded=" + encodeURIComponent(account!.name));
 }

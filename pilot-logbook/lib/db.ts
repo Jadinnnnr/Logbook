@@ -1,4 +1,6 @@
 import Database from "better-sqlite3";
+import type { BackupArchive } from "./backup.ts";
+import { BACKUP_VERSION } from "./backup.ts";
 import fs from "fs";
 import path from "path";
 // Explicit extension so the test scripts can load this module under Node's
@@ -254,6 +256,31 @@ CREATE TABLE IF NOT EXISTS endorsements (
   notes TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS bookmarks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  citation TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, source, citation)
+);
+CREATE TABLE IF NOT EXISTS bookmark_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, name)
+);
+-- Many-to-many on purpose: one regulation belongs in as many groups as it's
+-- relevant to. The composite primary key makes a repeat insert a no-op rather
+-- than a duplicate row. Both sides already carry user_id, so the join can't
+-- cross accounts even if a stale id were passed in.
+CREATE TABLE IF NOT EXISTS bookmark_group_members (
+  group_id INTEGER NOT NULL REFERENCES bookmark_groups(id) ON DELETE CASCADE,
+  bookmark_id INTEGER NOT NULL REFERENCES bookmarks(id) ON DELETE CASCADE,
+  PRIMARY KEY (group_id, bookmark_id)
+);
 CREATE TABLE IF NOT EXISTS schema_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -480,6 +507,64 @@ export function endorsementsForUser(userId: number): Endorsement[] {
     .all(userId) as Endorsement[];
 }
 
+// ---------- Bookmarks ----------
+
+/**
+ * A saved regulation or AIM paragraph.
+ *
+ * Only the citation is stored, never the text: the wording lives in
+ * `reference.db` and is replaced wholesale each time the datasets are rebuilt.
+ * A bookmark carrying its own copy would quietly go stale against the
+ * regulation it points at, which is the one thing a reference tool must not do.
+ */
+export interface Bookmark {
+  id: number;
+  user_id: number;
+  source: string;
+  citation: string;
+  name: string;
+  created_at: string;
+}
+
+/** A named collection. Membership is many-to-many — see the schema. */
+export interface BookmarkGroup {
+  id: number;
+  user_id: number;
+  name: string;
+  created_at: string;
+}
+
+export function bookmarksForUser(userId: number): Bookmark[] {
+  return getDb()
+    .prepare("SELECT * FROM bookmarks WHERE user_id = ? ORDER BY created_at DESC, id DESC")
+    .all(userId) as Bookmark[];
+}
+
+export function bookmarkGroupsForUser(userId: number): BookmarkGroup[] {
+  return getDb()
+    .prepare("SELECT * FROM bookmark_groups WHERE user_id = ? ORDER BY name COLLATE NOCASE")
+    .all(userId) as BookmarkGroup[];
+}
+
+/** Bookmark id → the groups it sits in. */
+export function bookmarkMembershipForUser(userId: number): Map<number, Set<number>> {
+  const rows = getDb()
+    .prepare(
+      `SELECT m.bookmark_id AS bookmarkId, m.group_id AS groupId
+         FROM bookmark_group_members m
+         JOIN bookmarks b ON b.id = m.bookmark_id
+        WHERE b.user_id = ?`
+    )
+    .all(userId) as { bookmarkId: number; groupId: number }[];
+  const out = new Map<number, Set<number>>();
+  for (const r of rows) {
+    const set = out.get(r.bookmarkId) ?? new Set<number>();
+    set.add(r.groupId);
+    out.set(r.bookmarkId, set);
+  }
+  return out;
+}
+
 /** What most recently restarted the 61.56 clock, and when. */
 export interface ReviewReset {
   date: string;
@@ -543,3 +628,152 @@ export function credentialsForUser(user: User): Credentials {
     flightReview: pickReviewReset(endorsementsForUser(user.id), certificatesForUser(user.id)),
   };
 }
+
+// ---------- Backup ----------
+
+/**
+ * Everything one pilot owns, as a value.
+ *
+ * Scoped to a single user_id throughout: the database holds many accounts and a
+ * backup must never carry somebody else's logbook. Row ids and user_id are
+ * stripped, since neither means anything in the database it's restored into.
+ */
+export function archiveForUser(userId: number, now = new Date()): BackupArchive {
+  const db = getDb();
+  const strip = (rows: Record<string, unknown>[]) =>
+    rows.map((r) => {
+      const { id, user_id, created_at, ...rest } = r;
+      void id;
+      void user_id;
+      void created_at;
+      return rest;
+    });
+
+  const user = db.prepare("SELECT name, date_of_birth FROM users WHERE id = ?").get(userId) as
+    | { name: string; date_of_birth: string | null }
+    | undefined;
+
+  const marks = bookmarksForUser(userId);
+  const groups = bookmarkGroupsForUser(userId);
+  const membership = bookmarkMembershipForUser(userId);
+  const groupName = new Map(groups.map((g) => [g.id, g.name]));
+
+  return {
+    formatVersion: BACKUP_VERSION,
+    exportedAt: now.toISOString(),
+    pilot: { name: user?.name ?? "", dateOfBirth: user?.date_of_birth ?? null },
+    flights: strip(flightsForUser(userId) as unknown as Record<string, unknown>[]),
+    aircraft: strip(aircraftForUser(userId) as unknown as Record<string, unknown>[]),
+    certificates: strip(certificatesForUser(userId) as unknown as Record<string, unknown>[]),
+    medicals: strip(medicalsForUser(userId) as unknown as Record<string, unknown>[]),
+    endorsements: strip(endorsementsForUser(userId) as unknown as Record<string, unknown>[]),
+    bookmarkGroups: groups.map((g) => g.name),
+    bookmarks: marks.map((m) => ({
+      source: m.source,
+      citation: m.citation,
+      name: m.name,
+      groups: [...(membership.get(m.id) ?? [])]
+        .map((id) => groupName.get(id))
+        .filter((n): n is string => !!n),
+    })),
+  };
+}
+
+// ---------- Restore ----------
+
+const FLIGHT_COLS = [
+  "date", "aircraft_type", "tail_number", "from_airport", "to_airport", "route",
+  "total_time", "pic", "sic", "dual_received", "solo", "night", "cross_country",
+  "actual_instrument", "simulated_instrument", "day_landings", "night_landings",
+  "night_full_stop_landings", "approaches", "holds", "remarks",
+];
+const AIRCRAFT_COLS = [
+  "tail_number", "aircraft_type", "make_model", "category_class",
+  "is_complex", "is_high_performance", "is_taa", "is_tailwheel", "notes",
+];
+const CERT_COLS = ["kind", "name", "number", "issued_date", "expires_date", "resets_flight_review", "notes"];
+const MEDICAL_COLS = ["medical_class", "exam_date", "expires_date", "examiner", "notes"];
+const ENDORSEMENT_COLS = ["endorsement_type", "date", "expires_date", "instructor_name", "instructor_cert", "notes"];
+
+/** Coerce a loose JSON value into what the column expects. */
+function cell(v: unknown, numeric: boolean): string | number {
+  if (numeric) {
+    const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+    return Number.isFinite(n) ? n : 0;
+  }
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
+const NUMERIC = new Set([
+  "total_time", "pic", "sic", "dual_received", "solo", "night", "cross_country",
+  "actual_instrument", "simulated_instrument", "day_landings", "night_landings",
+  "night_full_stop_landings", "approaches", "holds",
+  "is_complex", "is_high_performance", "is_taa", "is_tailwheel", "resets_flight_review",
+]);
+
+/**
+ * Writes an archive over the signed-in pilot's rows.
+ *
+ * A restore replaces rather than merges. Merging would mean deciding what
+ * counts as the same flight, and being wrong either way is worse: restoring the
+ * same file twice would silently double a logbook, and a pilot who restores is
+ * usually recovering, not combining. One transaction, so a failure part-way
+ * leaves the logbook as it was rather than half-overwritten.
+ */
+export function writeArchive(userId: number, archive: BackupArchive) {
+  const db = getDb();
+  const insertInto = (table: string, cols: string[], rows: Record<string, unknown>[]) => {
+    const stmt = db.prepare(
+      `INSERT INTO ${table} (user_id, ${cols.join(", ")}) VALUES (?, ${cols.map(() => "?").join(", ")})`
+    );
+    for (const row of rows) stmt.run(userId, ...cols.map((c) => cell(row[c], NUMERIC.has(c))));
+  };
+
+  db.transaction(() => {
+    for (const t of ["flights", "aircraft", "certificates", "medicals", "endorsements", "bookmarks", "bookmark_groups"]) {
+      db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(userId);
+    }
+    insertInto("flights", FLIGHT_COLS, archive.flights);
+    insertInto("aircraft", AIRCRAFT_COLS, archive.aircraft);
+    insertInto("certificates", CERT_COLS, archive.certificates);
+    insertInto("medicals", MEDICAL_COLS, archive.medicals);
+    insertInto("endorsements", ENDORSEMENT_COLS, archive.endorsements);
+
+    // Groups first, so the bookmarks below have something to join to.
+    const groupId = new Map<string, number>();
+    const addGroup = (raw: string) => {
+      const name = raw.trim();
+      const key = name.toLowerCase();
+      if (!name || groupId.has(key)) return;
+      const info = db
+        .prepare("INSERT OR IGNORE INTO bookmark_groups (user_id, name) VALUES (?, ?)")
+        .run(userId, name);
+      groupId.set(key, Number(info.lastInsertRowid));
+    };
+    for (const g of archive.bookmarkGroups) addGroup(g);
+
+    for (const mark of archive.bookmarks) {
+      if (!mark.source || !mark.citation) continue;
+      const info = db
+        .prepare("INSERT OR IGNORE INTO bookmarks (user_id, source, citation, name) VALUES (?, ?, ?, ?)")
+        .run(userId, mark.source, mark.citation, mark.name);
+      const bookmarkId = Number(info.lastInsertRowid);
+      for (const g of mark.groups) {
+        // A group named only on a bookmark, never in the group list, still gets
+        // made — better than dropping the membership.
+        addGroup(g);
+        const gid = groupId.get(g.trim().toLowerCase());
+        if (!gid) continue;
+        db.prepare(
+          "INSERT OR IGNORE INTO bookmark_group_members (group_id, bookmark_id) VALUES (?, ?)"
+        ).run(gid, bookmarkId);
+      }
+    }
+
+    db.prepare("UPDATE users SET date_of_birth = ? WHERE id = ?").run(
+      archive.pilot.dateOfBirth,
+      userId
+    );
+  })();
+}
+

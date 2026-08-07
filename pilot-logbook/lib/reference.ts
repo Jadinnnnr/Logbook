@@ -101,3 +101,22 @@ export function lookupCitation(query: string): ReferenceHit | null {
     .get(`14 CFR ${m[1]}`) as ReferenceHit | undefined;
   return row ?? null;
 }
+
+/**
+ * The current text for a stored citation.
+ *
+ * Returns null when the citation is no longer in the dataset — a rebuilt
+ * reference.db can renumber or drop a section, and a bookmark pointing at one
+ * that's gone should disappear from the list rather than show stale text.
+ */
+export function lookupBySourceCitation(source: string, citation: string): ReferenceHit | null {
+  const db = referenceDb();
+  if (!db || !source || !citation) return null;
+  const row = db
+    .prepare(
+      `SELECT source, citation, title, url, body, '' AS snippet
+         FROM docs WHERE source = ? AND citation = ? LIMIT 1`
+    )
+    .get(source, citation) as ReferenceHit | undefined;
+  return row ?? null;
+}

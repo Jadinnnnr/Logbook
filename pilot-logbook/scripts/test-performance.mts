@@ -2,6 +2,7 @@
 // Run with: node scripts/test-performance.mts
 import {
   pressureAltitude,
+  chartPressureAltitude,
   isaTempC,
   densityAltitude,
   windComponents,
@@ -107,6 +108,16 @@ check(
 near("two corrections compound", applyCorrections(1000, [15, 10]), 1265, 0.001);
 near("no corrections leaves it alone", applyCorrections(1000, []), 1000, 0.001);
 near("a negative correction shortens it", applyCorrections(1000, [-10]), 900, 0.001);
+
+// The charts all start at sea level, so the calculator floors there rather than
+// refusing to compute. Unclamped this is about -905 ft, which is an ordinary
+// high-pressure day at a sea-level field.
+near("a below-sea-level PA is floored for the charts",
+  chartPressureAltitude(0, 30.92), 0, 0.0001);
+near("...and a positive one is left alone",
+  chartPressureAltitude(1000, 29.92126), 1000, 0.5);
+near("...while pressureAltitude itself stays unclamped",
+  pressureAltitude(0, 30.92), -905, 25);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nAll performance tests passed");
 if (failures) process.exit(1);

@@ -79,6 +79,15 @@ export default async function SettingsPage({
       {/* Outside the settings form — nesting forms is invalid, and these must
           not be submittable by the Save button. */}
       <div className="card danger-zone" style={{ maxWidth: 620 }}>
+        <h2>Developer</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Load a canned test account over your logbook, for trying screens against data that
+          isn&rsquo;t yours. Password protected, and destructive —{" "}
+          <Link href="/developer">open the developer page</Link>.
+        </p>
+      </div>
+
+      <div className="card">
         <h2>Erase Data</h2>
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           You currently have {summary}. Both actions below are immediate and cannot be undone —

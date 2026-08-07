@@ -1478,3 +1478,103 @@ button:disabled {
   color: var(--status-critical);
   font-weight: 600;
 }
+
+/* ---------- Regulation bookmarks ---------- */
+
+/* A submit button that reads as a link, so the bookmark and remove controls
+   sit inside prose rows without looking like form furniture. */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--link);
+  cursor: pointer;
+  font: inherit;
+}
+.link-button:hover { text-decoration: underline; }
+.link-button.danger { color: var(--danger, #b3261e); }
+
+.bookmark-panel { margin-top: 14px; }
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.chip-on {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+.chip-with-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.inline-form input { max-width: 220px; }
+
+/* The name field and group checkboxes under a saved bookmark. */
+.bookmark-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.chip-check {
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+/* ---------- Developer fixtures ---------- */
+.dev-account {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.dev-account > div:first-child { flex: 1; min-width: 220px; }
+
+/* ---------- Certificate progress ---------- */
+.progress-row { margin: 12px 0; }
+.progress-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+}
+.progress-head .num { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin: 5px 0 3px;
+}
+.progress-fill { height: 100%; border-radius: 999px; }
+.progress-fill.met { background: var(--good, #1a7f4b); }
+.progress-fill.short { background: var(--warn, #a86a08); }
+.progress-fill.untracked { background: var(--muted-fg, #8a8a8e); }
+.progress-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted-fg, #6b6b70);
+}
+.progress-why { font-size: 12px; color: var(--muted-fg, #6b6b70); margin: 2px 0 0; }

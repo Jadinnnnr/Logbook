@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { aircraftByTail, credentialsForUser, flightsForUser } from "@/lib/db";
 import {
@@ -74,6 +75,15 @@ export default async function Dashboard() {
   return (
     <main className="container">
       <h1>Dashboard</h1>
+
+      {/* The currency cards say what's expiring; this is the other question —
+          what's still needed for the next certificate. */}
+      <p style={{ margin: "0 0 14px" }}>
+        <Link href="/progress">Certificate progress →</Link>{" "}
+        <span className="muted" style={{ fontSize: 13 }}>
+          hours toward the private, instrument, commercial, or ATP
+        </span>
+      </p>
 
       {/* The currency cards below say what your state is; this says what you'd
           have to go and fly about it. */}

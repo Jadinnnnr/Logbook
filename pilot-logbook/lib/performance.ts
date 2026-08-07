@@ -18,6 +18,23 @@ export function pressureAltitude(fieldElevFt: number, altimeterInHg: number): nu
   return fieldElevFt + 145366.45 * (1 - Math.pow(altimeterInHg / ISA_PRESSURE_INHG, 0.190284));
 }
 
+/**
+ * The pressure altitude the performance charts are read at, floored at sea
+ * level.
+ *
+ * A high altimeter setting at a low field puts the true pressure altitude below
+ * zero, and every chart the calculator reads — the PA-28-181's and the AFM
+ * tables the manual path brackets — starts at 0 ft, so a negative value was
+ * refused as off the chart rather than read off its first row. At sea level with
+ * a 30.92 setting that is -905 ft, which is an ordinary high-pressure day.
+ *
+ * `pressureAltitude` is deliberately left unclamped: it reports a physical
+ * quantity, and below sea level is a real place.
+ */
+export function chartPressureAltitude(fieldElevFt: number, altimeterInHg: number): number {
+  return Math.max(0, pressureAltitude(fieldElevFt, altimeterInHg));
+}
+
 /** Standard-atmosphere temperature at a pressure altitude. */
 export function isaTempC(pressureAltFt: number): number {
   return ISA_SEA_LEVEL_C - 1.98 * (pressureAltFt / 1000);

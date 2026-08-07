@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  pressureAltitude,
+  chartPressureAltitude,
   isaTempC,
   densityAltitude,
   windComponents,
@@ -101,7 +101,7 @@ export default function PerformanceCalculator({ seed }: { seed: PerformanceSeed 
     const a = num(altim);
     const t = num(oat);
     if (!Number.isFinite(e) || !Number.isFinite(a)) return null;
-    const pa = pressureAltitude(e, a);
+    const pa = chartPressureAltitude(e, a);
     const isa = isaTempC(pa);
     if (!Number.isFinite(t)) return { pa, isa, da: null, dev: null };
     return { pa, isa, da: densityAltitude(pa, t), dev: t - isa };

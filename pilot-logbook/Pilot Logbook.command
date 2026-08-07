@@ -18,8 +18,21 @@ PROJECT="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 cd "$PROJECT" || { echo "Can't find the logbook folder."; read -r; exit 1; }
 
 # This Mac's system Node is far too old, so use the user-local Node 22 install.
-NODE_BIN="$HOME/.local/node-v22.23.2-darwin-x64/bin"
-[ -d "$NODE_BIN" ] && export PATH="$NODE_BIN:$PATH"
+#
+# The architecture and version are found rather than hardcoded. This line used
+# to name darwin-x64 outright, which is simply the wrong directory on Apple
+# silicon — the install is darwin-arm64 — so the launcher reported Node missing
+# when it was sitting right there. Globbing the version too means a Node upgrade
+# doesn't break this again.
+case "$(uname -m)" in
+  arm64) NODE_ARCH="arm64" ;;
+  *)     NODE_ARCH="x64" ;;
+esac
+NODE_BIN=""
+for candidate in "$HOME/.local"/node-v22.*-darwin-"$NODE_ARCH"/bin; do
+  [ -x "$candidate/node" ] && NODE_BIN="$candidate"
+done
+[ -n "$NODE_BIN" ] && export PATH="$NODE_BIN:$PATH"
 
 printf '\033]0;Pilot Logbook\007'   # name the Terminal window
 echo "✈  Pilot Logbook"
@@ -28,8 +41,8 @@ echo
 
 if ! command -v node >/dev/null 2>&1; then
   echo "✕  Node isn't available."
-  echo "   Expected it at: $NODE_BIN"
-  echo "   Reinstall Node 22 there, or edit NODE_BIN near the top of this file."
+  echo "   Looked for: ~/.local/node-v22.*-darwin-$NODE_ARCH/bin"
+  echo "   This Mac is $(uname -m). Install Node 22 there, or put node on your PATH."
   echo
   echo "Press Return to close."
   read -r
