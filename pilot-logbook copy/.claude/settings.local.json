@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls ~/.local/node-v22.23.2-darwin-x64/bin/)",
+      "Bash(grep -oE '\\(Error|error|Warning|warn|Unhandled|Failed|⨯\\)[^│]{0,140}' /Users/School/.claude/projects/-Users-School-Documents-pilot-logbook/8bd06a6d-1f5b-4740-b94d-95184253c592/tool-results/mcp-Claude_Browser-preview_logs-1785709699639.txt)"
+    ]
+  }
+}
