@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { saveSettings, changePassword, eraseLogbookData, deleteAccount } from "@/lib/actions";
 import { dataCountsForUser } from "@/lib/db";
-import { THEMES, DEFAULT_CUSTOM_HEX } from "@/lib/theme";
+import { THEMES, FONTS, DEFAULT_CUSTOM_HEX } from "@/lib/theme";
 import AccentPicker from "@/components/AccentPicker";
 
 /** Ties the password controls in the Account card to their form element. */
@@ -122,13 +122,31 @@ export default async function SettingsPage({
           </div>
 
           <div className="field" style={{ marginTop: 18 }}>
+            <label>Typeface</label>
+            <div className="choice-row">
+              {FONTS.map(([value, label, note]) => (
+                <label className="choice" key={value} title={note}>
+                  <input type="radio" name="font" value={value} defaultChecked={user.font === value} />
+                  <span className="choice-body">{label}</span>
+                </label>
+              ))}
+            </div>
+            <span className="muted" style={{ fontSize: 12 }}>
+              {FONTS.map(([, label, note]) => `${label} — ${note.toLowerCase()}`).join(". ")}. The
+              condensed uppercase headings belong to Industry; the other two set headings in
+              sentence case.
+            </span>
+          </div>
+
+          <div className="field" style={{ marginTop: 18 }}>
             <label>Accent Color</label>
             <AccentPicker accent={user.accent} customHex={user.accent_custom ?? DEFAULT_CUSTOM_HEX} />
             <span className="muted" style={{ fontSize: 12 }}>
               Sets buttons, links, and highlights, and previews as you choose. Any custom color
               keeps its hue but is lightened or darkened as needed so text stays readable on it in
-              both themes — so a very pale or very dark pick will shift. Chart colors keep their
-              own colorblind-safe palette.
+              both themes — so a very pale or very dark pick will shift. Charts separate their
+              series by lightness rather than hue, so they stay readable however you set this and
+              whether or not you see color the usual way.
             </span>
           </div>
         </div>

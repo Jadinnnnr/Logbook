@@ -106,6 +106,12 @@ sit in the middle, and a defect at the ends is invisible from there.
 node scripts/pohtrace/climbdescent/export.mjs
 ```
 
+This writes two files: `lib/pa28-181-climbdescent.ts` for the web app, and
+`pa28-181-climbdescent.json` into the iOS app's `PilotLogbook/Data/` when that
+checkout is where it usually is (override with `IOS_DATA_DIR`). Both apps read
+the same digitisation on purpose — a second tracer would be a second set of
+numbers to keep honest.
+
 Expects the POH at the path in `../lib.mjs`. The calibration in `trace.mjs` is
 in pixels of that exact scan; a different PDF needs it re-derived from the plot's
 minor rules and re-checked against the printed axis labels. Requires `mupdf` from

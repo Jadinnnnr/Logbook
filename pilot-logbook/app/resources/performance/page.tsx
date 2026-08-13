@@ -5,6 +5,7 @@ import { fetchWeather, relativeTime } from "@/lib/weather";
 import { runwayHeadingFromIdent } from "@/lib/performance";
 import PerformanceCalculator, { PerformanceSeed, RunwayOption } from "@/components/PerformanceCalculator";
 import ClimbDescentCalculator from "@/components/ClimbDescentCalculator";
+import CruiseCalculator from "@/components/CruiseCalculator";
 
 const EMPTY: PerformanceSeed = {
   ident: null,
@@ -127,6 +128,8 @@ export default async function PerformancePage({
         seed={{ elevationFt: seed.elevationFt, temperatureC: seed.temperatureC }}
       />
 
+      <CruiseCalculator />
+
       <div className="card" style={{ maxWidth: 620 }}>
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
           Takeoff and landing distances moved to the{" "}
@@ -137,7 +140,7 @@ export default async function PerformancePage({
 
       <p className="muted" style={{ fontSize: 12, maxWidth: 760 }}>
         Pressure and density altitude are computed from the International Standard Atmosphere. The
-        climb and descent figures are digitised from the PA-28-181 POH and apply to that aircraft at
+        climb, descent and cruise figures come from the PA-28-181 POH and apply to that aircraft at
         2,550 lb and nothing else; every other distance on this site comes only from the numbers you
         copy out of your own AFM/POH. None of it replaces the book, and none of it is an official
         preflight briefing.

@@ -78,6 +78,19 @@ export const DESCENT_DATA: ChartData = ${JSON.stringify(charts[1], null, 2)} as 
 
 fs.writeFileSync(OUT, body);
 console.log(`wrote ${path.relative(process.cwd(), OUT)}`);
+
+// The iOS app reads the same figures from a bundled JSON. Emitting it here keeps
+// the two apps on one digitisation — a second tracer would be a second set of
+// numbers to keep honest. Set IOS_DATA_DIR to point somewhere else.
+const IOS = process.env.IOS_DATA_DIR ??
+  path.resolve(HERE, "../../../../../../pilot-logbook-ios/PilotLogbook/Data");
+if (fs.existsSync(IOS)) {
+  const file = path.join(IOS, "pa28-181-climbdescent.json");
+  fs.writeFileSync(file, JSON.stringify({ climb: charts[0], descent: charts[1] }));
+  console.log(`wrote ${file}`);
+} else {
+  console.log(`note: no iOS data directory at ${IOS} — skipped the app's copy`);
+}
 for (const c of charts) {
   console.log(`  ${c.figure} (${c.phase}): ${c.altitudes.length} altitude curves, ` +
     `${c.altitudes[0].alt}–${c.altitudes.at(-1).alt} ft`);

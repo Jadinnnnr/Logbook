@@ -27,6 +27,8 @@ export interface User {
   /** One of ACCENTS, or "custom" — in which case accent_custom holds the hex. */
   accent: string;
   accent_custom: string | null;
+  /** One of FONTS — the type pairing. */
+  font: string;
   /** Needed for 61.23(d) medical privilege durations (age at date of exam). */
   date_of_birth: string | null;
   /** Profile picture bytes and their MIME type, or null when unset. */
@@ -178,6 +180,7 @@ CREATE TABLE IF NOT EXISTS users (
   theme TEXT NOT NULL DEFAULT 'system',
   accent TEXT NOT NULL DEFAULT 'blue',
   accent_custom TEXT,
+  font TEXT NOT NULL DEFAULT 'industry',
   date_of_birth TEXT,
   avatar BLOB,
   avatar_type TEXT,
@@ -374,6 +377,9 @@ function migrate(db: Database.Database) {
   }
   if (!userCols.includes("date_of_birth")) {
     db.exec("ALTER TABLE users ADD COLUMN date_of_birth TEXT");
+  }
+  if (!userCols.includes("font")) {
+    db.exec("ALTER TABLE users ADD COLUMN font TEXT NOT NULL DEFAULT 'industry'");
   }
   if (!userCols.includes("accent_custom")) {
     db.exec("ALTER TABLE users ADD COLUMN accent_custom TEXT");

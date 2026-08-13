@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getDb, User, Flight, userIdWithName, writeArchive } from "./db";
 import { nameError } from "./username";
-import { THEMES, ACCENTS, CUSTOM_ACCENT } from "./theme";
+import { THEMES, ACCENTS, CUSTOM_ACCENT, FONTS } from "./theme";
 import { isHexColor } from "./color";
 import { refreshRunning } from "./datastatus";
 import { spawn } from "child_process";
@@ -230,9 +230,12 @@ export async function saveSettings(formData: FormData) {
     ACCENTS.some(([v]) => v === requested) || requested === CUSTOM_ACCENT ? requested : user.accent;
   const requestedHex = str(formData, "accent_custom").toLowerCase();
   const customHex = isHexColor(requestedHex) ? requestedHex : user.accent_custom;
+  const font = FONTS.some(([v]) => v === str(formData, "font")) ? str(formData, "font") : user.font;
   getDb()
-    .prepare("UPDATE users SET username = ?, name = ?, theme = ?, accent = ?, accent_custom = ? WHERE id = ?")
-    .run(name, name, theme, accent, customHex, user.id);
+    .prepare(
+      "UPDATE users SET username = ?, name = ?, theme = ?, accent = ?, accent_custom = ?, font = ? WHERE id = ?"
+    )
+    .run(name, name, theme, accent, customHex, font, user.id);
   revalidatePath("/", "layout");
   redirect("/settings?saved=1");
 }

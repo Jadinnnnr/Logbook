@@ -1,0 +1,384 @@
+/* ===========================================================================
+   industry-theme.css — Industry design system, applied to Pilot Logbook.
+
+   Install: import AFTER app/globals.css so these rules win.
+     app/layout.tsx →  import "./globals.css";
+                       import "./industry-theme.css";
+
+   Nothing in your TSX has to change for Phase 1. This file re-points the
+   variables globals.css already reads, then squares off the handful of
+   radii and surfaces that were hard-coded.
+
+   Industry in one line: steel-blue on a light technical ground, Barlow
+   Condensed over Barlow, square corners, hairline borders, transparent
+   cards drawn as line drawings, one solid accent button.
+   =========================================================================== */
+
+/* --- 1. Type -------------------------------------------------------------
+   Loaded through next/font/google in app/layout.tsx rather than a <link> to
+   fonts.googleapis.com: next/font self-hosts the files into the build, so the
+   app keeps working with no network. That matters here — this thing ships an
+   offline airport database and a copy of 14 CFR precisely so it can be used
+   somewhere without signal, and a webfont that only arrives over the internet
+   would undo that for the sake of type.
+   ------------------------------------------------------------------------ */
+:root, [data-font="industry"] {
+  --font-heading: var(--font-barlow-condensed), "Barlow Condensed", system-ui, sans-serif;
+  --font-body: var(--font-barlow), "Barlow", system-ui, sans-serif;
+}
+[data-font="grotesk"] {
+  --font-heading: var(--font-inter), system-ui, sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+}
+[data-font="system"] {
+  --font-heading: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body { font-family: var(--font-body); }
+
+h1, h2, h3, h4,
+.tile-value, .hero-value, .perf-result-value, .chart-title,
+.auth-headline, .auth-title, .res-link-title, .ref-citation, .airport-name {
+  font-family: var(--font-heading);
+  font-weight: 600;
+}
+/* Numbers stay tabular — this is a logbook. */
+.tile-value, .hero-value, .perf-result-value, .num, .tier-time { font-variant-numeric: tabular-nums; }
+
+/* The condensed uppercase voice belongs to Industry, not to the app. Choose a
+   different face and headings go back to sentence case — uppercase, letter-
+   spaced Inter is nobody's idea of a good time. */
+[data-font="industry"] :is(h1, h2, h3, h4,
+  .tile-value, .hero-value, .perf-result-value, .chart-title,
+  .auth-headline, .auth-title, .res-link-title, .ref-citation, .airport-name) {
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Small uppercase furniture: the kicker voice. */
+.tile-label, .perf-result-label, .airport-section, th, .chip, .wx-cat {
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+[data-font="industry"] :is(.tile-label, .perf-result-label, .airport-section, th, .chip, .wx-cat) {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* --- 2. Palette ----------------------------------------------------------
+   Industry is a MONO scheme: one steel accent, no second hue. The six accent
+   presets in lib/theme.ts are all re-pointed at the steel ramp so existing
+   saved preferences keep working without breaking the look. See the README
+   for the two options on what to do with the picker.
+   ------------------------------------------------------------------------ */
+/* Steel is the hue the rest of this design is drawn around, and the default for
+   a new account. The other presets are left alone — the palette is a
+   preference, not a house style, and globals.css still supplies them. */
+/* Scoped to the swatch only, never to :root — globals.css defines each preset at
+   the same specificity, so a :root rule here would sit later in the cascade and
+   quietly repaint every hue steel. */
+[data-accent="steel"] {
+  --a-light: #5980a6;        /* --color-accent      */
+  --a-light-hover: #416180;  /* --color-accent-700  */
+  --a-dark: #94bce3;         /* --color-accent-400  */
+  --a-dark-hover: #b5d9fd;   /* --color-accent-300  */
+}
+
+/* --- 2b. The ground follows the accent ----------------------------------
+   Industry derives its ground from the accent ramp — steel's #1d2d3d is the
+   900 step of steel. Mixing it live rather than hard-coding one pair per
+   swatch means every preset gets its own board, and a custom hex does too,
+   with nothing to keep in step.
+
+   Mixed against a near-black (dark) or near-white (light) rather than pure
+   black or white: a straight mix with black keeps the accent's full
+   saturation, and a fully saturated green board is not somewhere you want to
+   read a logbook.
+   ------------------------------------------------------------------------ */
+:root {
+  /* Light mode = Industry's own ground, faintly tinted toward the accent. */
+  --page: color-mix(in srgb, var(--a-light) 7%, #f6f6f7);
+  --surface: transparent;    /* cards are line drawings, not filled blocks */
+  --surface-solid: color-mix(in srgb, var(--a-light) 13%, #ececee);
+  --text-primary: #1d1f20;   /* --color-text        */
+  --text-secondary: #424244; /* --color-neutral-800 */
+  --text-muted: #5d5d60;     /* --color-neutral-700 */
+  --grid: rgba(29, 31, 32, 0.10);
+  --baseline: rgba(29, 31, 32, 0.28);
+  --border: rgba(29, 31, 32, 0.16);   /* --color-divider */
+  --accent-on: #f7f7f8;
+
+  /* Chart series: one hue, differentiated by VALUE. Built from the accent so
+     the plots sit on the board rather than clashing with it — steel bars on an
+     orange ground would be the only thing you could see. */
+  --series-1: var(--a-light);
+  --series-2: color-mix(in srgb, var(--a-light) 62%, #000);
+  --series-3: color-mix(in srgb, var(--a-light) 45%, #fff);
+  --series-4: #7a7a7d;
+
+  /* Status stays functional — pilots read these as meaning. Desaturated to
+     sit inside the steel board rather than shout over it. */
+  --status-good: #3f7d54;
+  --status-warning: #a8791f;
+  --status-critical: #a63d33;
+  --good-text: #2f6440;
+
+  /* Squared off: Industry's radius scale tops out at 7px and the wireframe
+     objects use 0. */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+}
+
+/* Dark mode = the accent's deep step as a full field, type reversed to paper.
+   (The deck's section dividers use this same move.) */
+:root[data-theme="dark"] {
+  --page: color-mix(in srgb, var(--a-light) 30%, #0a0c0f);
+  --surface: transparent;
+  --surface-solid: color-mix(in srgb, var(--a-light) 42%, #0f1216);
+  --text-primary: #f2f2f3;
+  --text-secondary: #d4d4d7;
+  --text-muted: #b7b7ba;
+  --grid: rgba(242, 242, 243, 0.12);
+  --baseline: rgba(242, 242, 243, 0.32);
+  --border: rgba(242, 242, 243, 0.18);
+  --accent-on: var(--page);
+  --series-1: var(--a-dark);
+  --series-2: color-mix(in srgb, var(--a-dark) 55%, #fff);
+  --series-3: color-mix(in srgb, var(--a-dark) 58%, #000);
+  --series-4: #b7b7ba;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: color-mix(in srgb, var(--a-light) 30%, #0a0c0f);
+    --surface: transparent;
+    --surface-solid: color-mix(in srgb, var(--a-light) 42%, #0f1216);
+    --text-primary: #f2f2f3;
+    --text-secondary: #d4d4d7;
+    --text-muted: #b7b7ba;
+    --grid: rgba(242, 242, 243, 0.12);
+    --baseline: rgba(242, 242, 243, 0.32);
+    --border: rgba(242, 242, 243, 0.18);
+    --accent-on: var(--page);
+    --series-1: var(--a-dark);
+    --series-2: color-mix(in srgb, var(--a-dark) 55%, #fff);
+    --series-3: color-mix(in srgb, var(--a-dark) 58%, #000);
+    --series-4: #b7b7ba;
+  }
+}
+
+/* --- 3. Square the corners ----------------------------------------------
+   globals.css hard-codes 6-12px radii in ~20 places. Industry's cards,
+   figures and buttons are square. Pills (progress tracks, chips, status
+   dots) keep their shape — they are not "objects on the board".
+   ------------------------------------------------------------------------ */
+.card, .tile, .currency-item, .chart-card, .auth-card, .res-link,
+.wx-raw, .crop-view, .perf-toggle, .wb-extras, .cd-reading, .error, .notice,
+button, .btn, input, select, textarea, .choice .choice-body,
+.range-chip, .pager-step, .pager-page, .wx-cat, .danger-action code,
+.custom-color input[type="color"], .chart-tooltip, .legend .swatch {
+  border-radius: 0;
+}
+.avatar, .swatch-choice .dot, .currency-status .dot, .tier-dot,
+.plan-item .dot, .plan-clear .dot, .freshness-dot,
+.progress-track, .progress-fill, .refresh-bar, .refresh-bar-fill,
+.refresh-step-track, .refresh-step-fill {
+  /* left alone on purpose */
+}
+
+/* --- 4. Objects on the board --------------------------------------------
+   Cards, tiles and figures become transparent hairline line drawings.
+   ------------------------------------------------------------------------ */
+.card, .tile, .currency-item, .chart-card, .auth-card, .res-link,
+.wb-extras, .cd-reading, .perf-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+/* Registration marks.
+   The handoff offers two of the four corners from a ::before/::after pair, with
+   the full set left to Phase 2 as four <i class="corner"> children. All four
+   fit in one pseudo-element instead: eight background layers on a box inset
+   -8px, each crosshair a 15px square with its cross at 7px so the centre lands
+   exactly on the object's corner. Same drawing as the prototype's .sl-corner,
+   and no markup to add to six components. */
+.card, .tile, .currency-item, .chart-card, .res-link {
+  position: relative;
+}
+.card::before, .tile::before, .currency-item::before,
+.chart-card::before, .res-link::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  pointer-events: none;
+  color: color-mix(in srgb, var(--text-primary) 55%, transparent);
+  background:
+    /* top-left */
+    linear-gradient(currentColor, currentColor) 7px 0 / 1px 15px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 7px / 15px 1px no-repeat,
+    /* top-right */
+    linear-gradient(currentColor, currentColor) calc(100% - 7px) 0 / 1px 15px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% 7px / 15px 1px no-repeat,
+    /* bottom-left */
+    linear-gradient(currentColor, currentColor) 7px 100% / 1px 15px no-repeat,
+    linear-gradient(currentColor, currentColor) 0 calc(100% - 7px) / 15px 1px no-repeat,
+    /* bottom-right */
+    linear-gradient(currentColor, currentColor) calc(100% - 7px) 100% / 1px 15px no-repeat,
+    linear-gradient(currentColor, currentColor) 100% calc(100% - 7px) / 15px 1px no-repeat;
+}
+/* Give the grids room. At the handoff's 20px the marks of neighbouring cells
+   sit 4px apart and read as one doubled smudge rather than two registrations;
+   28px puts clear space between them. */
+.grid-tiles, .currency-grid, .currency-stack, .res-links { gap: 28px; }
+
+/* --- 5. Nav — the header bar -------------------------------------------- */
+.nav {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+}
+.nav-brand {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* Uppercase and letter-spacing cost width, and eight links plus the brand, the
+   avatar and Log out no longer fitted the 1060px column — the bar wrapped onto a
+   second line. Tightened until the whole set fits again; the wrap is still there
+   for genuinely narrow screens, which is what it was for. */
+.nav-inner { gap: 2px; }
+.nav a.nav-link {
+  border-radius: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 6px 7px;
+  white-space: nowrap;
+}
+[data-font="grotesk"] .nav a.nav-link,
+[data-font="system"] .nav a.nav-link { text-transform: none; letter-spacing: 0; }
+.nav-brand { margin-right: 10px; }
+.nav-user { font-size: 12px; margin-right: 4px; }
+.nav a.nav-link:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.nav a.nav-link.active {
+  color: var(--accent-hover);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* --- 6. Buttons — the primary is the one solid object -------------------- */
+button, .btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 13px;
+  padding: 9px 18px;
+}
+button:hover, .btn:hover { background: var(--accent-hover); }
+button:active, .btn:active { background: #2c455d; }
+.btn-secondary {
+  background: transparent;
+  border-color: var(--baseline);
+  color: var(--text-primary);
+}
+.btn-secondary:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- 7. Tables — the native grammar of this app -------------------------- */
+th {
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--baseline);
+}
+td { border-bottom: 1px solid var(--grid); }
+tr.totals-row td { border-top: 1px solid var(--baseline); }
+
+/* --- 8. Forms ------------------------------------------------------------ */
+input, select, textarea {
+  background: transparent;
+  border: 1px solid var(--baseline);
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: transparent;
+}
+.field label {
+  font-size: 12px;
+  font-weight: 600;
+}
+[data-font="industry"] .field label {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Line the controls up across a row.
+   Uppercase, letter-spaced labels are wide, so in a grid the long ones wrap to
+   two lines and the short ones don't — which pushed each field's input to a
+   different height and left the row looking like a broken keyboard. Subgrid
+   hands the label and the control to the parent's own rows, so every label
+   block in a row is as tall as the tallest and every input starts on the same
+   line.
+
+   Three rows, not two: label, control, hint. A subgridded axis has no implicit
+   tracks, so a fourth-wall child — the "US registrations fill in the details
+   below automatically" under the tail number, say — does not push a new row,
+   it gets clamped into the last one and prints straight over the input. Every
+   field spans all three whether it has a hint or not, so the spans stay uniform
+   and auto-placement has nothing to trip over; the hint row collapses to
+   nothing in rows where no field carries one. */
+.perf-inputs > .field,
+.form-grid > .field {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  gap: 4px;
+}
+
+/* --- 7b. Charts ----------------------------------------------------------
+   The series variables are re-pointed above, so the plots recolour on their
+   own. This is the rest of README §c: axis type in the kicker voice. The grid
+   and baseline strokes already read var(--grid)/var(--baseline), and nothing in
+   the SVGs sets a fill opacity, so there is no translucency to remove.
+   ------------------------------------------------------------------------ */
+.axis-label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The password block is a plain <div>, so its fields and the submit button sat
+   flush against one another with nothing between them. */
+.account-password {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+.account-password > button { align-self: flex-start; }
+
+/* --- 8b. Fallout from a transparent surface ------------------------------
+   globals.css uses --surface for a few things that are not card fills, and
+   those need a real colour now that it is transparent. The weather chip is the
+   one that actually breaks: it painted its label in --surface to knock the text
+   out of a coloured field, which with a transparent surface is invisible text
+   on a solid block. --accent-on is the same idea done deliberately: the ink
+   colour for type sitting on a filled object. */
+.wx-unknown { color: var(--accent-on); }
+
+/* --- 9. Photographs — the duotone wrapper -------------------------------
+   Wrap any content photograph in <span class="duotone"> … </span>. Avatars
+   are excluded on purpose: a pilot's own face should not be screen-printed.
+   ------------------------------------------------------------------------ */
+.duotone { position: relative; display: block; overflow: hidden; }
+.duotone > img { display: block; width: 100%; filter: grayscale(1) contrast(1.08); }
+.duotone::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--accent);
+  mix-blend-mode: color;
+  pointer-events: none;
+}
